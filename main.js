@@ -4,7 +4,9 @@ const factorio = require("./libs/factorio");
 //5
 const tickSpeed = 2; //ms
 
-const midiFile = 'midis/ShootingStar.mid'
+const maxLength = 150;
+
+const midiFile = "midis/ShootingStar.mid";
 
 const noteMap = {
   F3: 53,
@@ -57,18 +59,14 @@ const noteMap = {
   E7: 100,
 };
 
+const midi = parseMidi(fs.readFileSync(midiFile));
+
 let objectIndex = 0;
 
 let blueprint = {
   blueprint: {
     icons: [
-      {
-        signal: {
-          type: "item",
-          name: "programmable-speaker",
-        },
-        index: 1,
-      },
+      { signal: { type: "item", name: "programmable-speaker" }, index: 1 },
     ],
     entities: [],
     label: "label",
@@ -79,10 +77,7 @@ function addToBlueprint(x, y, item, optionalParameter = {}) {
   blueprint.blueprint.entities.push({
     entity_number: objectIndex,
     name: item,
-    position: {
-      x,
-      y,
-    },
+    position: { x, y },
     ...optionalParameter,
   });
   objectIndex++;
@@ -91,29 +86,24 @@ function addToBlueprint(x, y, item, optionalParameter = {}) {
 const midiTickToGameTick = (i) => Math.ceil(i / tickSpeed);
 
 function getStringNote(note) {
-  let keys = Object.keys(noteMap);
-  let values = Object.values(noteMap);
-
   let minI = 0;
   let i = 0;
-  for (let val of values) {
-    if (Math.abs(val - note) < Math.abs(values[minI] - note)) {
+  for (let val of Object.values(noteMap)) {
+    if (Math.abs(val - note) < Math.abs(Object.values(noteMap)[minI] - note))
       minI = i;
-    }
     i++;
   }
-  return keys[minI];
+  return Object.keys(noteMap)[minI];
 }
 let song;
-let midi = parseMidi(fs.readFileSync(midiFile));
-blueprint.blueprint.label = midiFile.split('/')[1].split('.')[0]
-for(let track of midi.tracks){
-  if(track.filter(e=>(e.type==="noteOn")).length > 0){
-    song = track
+blueprint.blueprint.label = midiFile.split("/")[1].split(".")[0];
+for (let track of midi.tracks) {
+  if (track.filter((e) => e.type === "noteOn").length > 0) {
+    song = track;
   }
 }
 
-song = song.filter(e=>(e.type === "noteOff" || e.type === 'noteOn'))
+song = song.filter((e) => e.type === "noteOff" || e.type === "noteOn");
 
 //let song = midi.tracks[0];
 /*song.shift();
@@ -129,7 +119,7 @@ for (let e of song) {
 }
 
 let notes = [];
-console.log('soung length : '+songLength);
+console.log("soung length : " + songLength);
 
 let currentTime = tickSpeed;
 for (let note of song) {
@@ -155,7 +145,7 @@ fs.writeFileSync("out/notes.json", JSON.stringify({ notes }, null, 4));
 
 let convertedNotes = notes.map((e) => {
   e.startTime = midiTickToGameTick(e.startTime);
-  e.endTime = e.endTime ? midiTickToGameTick(e.endTime) : e.startTime+100;
+  e.endTime = e.endTime ? midiTickToGameTick(e.endTime) : e.startTime + 100;
   e.noteNumber = getStringNote(e.noteNumber);
   return e;
 });
@@ -171,8 +161,13 @@ console.log("number of notes : " + convertedNotes.length);
 
 //add speaker
 let x = 0;
+let y = 0;
 for (let note of convertedNotes) {
-  addToBlueprint(x, 0, "programmable-speaker", {
+  if (x > maxLength) {
+    y += 10;
+    x = 0;
+  }
+  addToBlueprint(x, y, "programmable-speaker", {
     //useless ------------------>
     parameters: {
       playback_volume: 1,
@@ -193,12 +188,12 @@ for (let note of convertedNotes) {
       },
       circuit_condition: {
         first_signal: {
-            type: "item",
-            name: "steel-chest"
+          type: "item",
+          name: "steel-chest",
         },
         constant: 0,
-        comparator: ">"
-    },
+        comparator: ">",
+      },
     },
     connections: {
       1: {
@@ -211,38 +206,50 @@ for (let note of convertedNotes) {
     },
   });
   note.entity_number = x;
+
   x++;
 }
-x = 0
-for(let note of convertedNotes){
-  addToBlueprint(x,-1,"small-lamp",{
+x = 0;
+y = 0
+for (let note of convertedNotes) {
+  addToBlueprint(x, y-1, "small-lamp", {
     control_behavior: {
-        circuit_condition: {
-            first_signal: {
-                type: "item",
-                name: "steel-chest"
-            },
-            constant: 0,
-            comparator: ">"
-        }
+      circuit_condition: {
+        first_signal: {
+          type: "item",
+          name: "steel-chest",
+        },
+        constant: 0,
+        comparator: ">",
+      },
     },
     connections: {
-        "1": {
-            red: [
-                {
-                    entity_id: null,
-                }
-            ]
-        }
-    }
+      1: {
+        red: [
+          {
+            entity_id: null,
+          },
+        ],
+      },
+    },
   });
-  x++
+  if (x > maxLength) {
+    y += 10;
+    x = 0;
+  }
+  x++;
 }
 x = 0;
+y = 0
 for (let note of convertedNotes) {
-  if (x % 7 === 0) {
-    addToBlueprint(x, 1, "medium-electric-pole");
+  if (x > maxLength) {
+    y += 10;
+    x = 0;
   }
+  if (x % 7 === 0) {
+    addToBlueprint(x, y+1, "medium-electric-pole");
+  }
+
   x++;
 }
 const poleNumber = objectIndex - convertedNotes.length;
@@ -251,9 +258,14 @@ console.log("number of poles : " + poleNumber);
 
 //add logic
 x = 0;
+y = 0
 let inputIndexes = [];
 for (let note of convertedNotes) {
-  addToBlueprint(x, 3, "arithmetic-combinator", {
+  if (x > maxLength) {
+    y += 10;
+    x = 0;
+  }
+  addToBlueprint(x, y+3, "arithmetic-combinator", {
     control_behavior: {
       arithmetic_conditions: {
         first_signal: {
@@ -272,7 +284,7 @@ for (let note of convertedNotes) {
       },
     },
     connections: {
-      "1": {
+      1: {
         //input
         red: [
           {
@@ -281,50 +293,50 @@ for (let note of convertedNotes) {
           },
         ],
       },
-      "2": {
+      2: {
         //output
         red: [
           {
-            entity_id: x,
+            entity_id: (y/10*maxLength)+x+(y/10),
           },
           {
-            entity_id: convertedNotes.length+x,
+            entity_id: convertedNotes.length + (y/10*maxLength)+x+(y/10),
           },
         ],
       },
-    }
+    },
   });
-  addToBlueprint(x, 5, "decider-combinator", {
+  addToBlueprint(x, y+5, "decider-combinator", {
     control_behavior: {
       decider_conditions: {
-          first_signal: {
-              type: "item",
-              name: "iron-plate"
-          },
-          constant: note.startTime,//to change
-          comparator: "≥",
-          output_signal: {
-              type: "item",
-              name: "wooden-chest"
-          },
-          copy_count_from_input: false
-      }
+        first_signal: {
+          type: "item",
+          name: "iron-plate",
+        },
+        constant: note.startTime, //to change
+        comparator: "≥",
+        output_signal: {
+          type: "item",
+          name: "wooden-chest",
+        },
+        copy_count_from_input: false,
+      },
     },
     connections: {
-      "1": {
+      1: {
         //input
         red: [
           {
             entity_id: objectIndex + 1,
             circuit_id: 1,
-          }
+          },
         ],
       },
-      "2": {
+      2: {
         //output
         red: [
           {
-            entity_id: objectIndex-1,
+            entity_id: objectIndex - 1,
             circuit_id: 1,
           },
           {
@@ -333,27 +345,27 @@ for (let note of convertedNotes) {
           },
         ],
       },
-    }
+    },
   });
 
-  addToBlueprint(x, 7, "decider-combinator", {
+  addToBlueprint(x, y+7, "decider-combinator", {
     control_behavior: {
       decider_conditions: {
-          first_signal: {
-              type: "item",
-              name: "iron-plate"
-          },
-          constant: note.endTime,//to change
-          comparator: "≤",
-          output_signal: {
-              type: "item",
-              name: "iron-chest"
-          },
-          copy_count_from_input: false
-      }
+        first_signal: {
+          type: "item",
+          name: "iron-plate",
+        },
+        constant: note.endTime, //to change
+        comparator: "≤",
+        output_signal: {
+          type: "item",
+          name: "iron-chest",
+        },
+        copy_count_from_input: false,
+      },
     },
     connections: {
-      "1": {
+      1: {
         //input
         red: [
           {
@@ -362,7 +374,7 @@ for (let note of convertedNotes) {
           },
         ],
       },
-      "2": {
+      2: {
         //output
         red: [
           {
@@ -371,33 +383,38 @@ for (let note of convertedNotes) {
           },
         ],
       },
-    }
+    },
   });
-  inputIndexes.push(objectIndex-1)
+  inputIndexes.push(objectIndex - 1);
+
   x++;
 }
 
 let i = 0;
-for(let ind of inputIndexes){
-  if(i === inputIndexes.length-1)continue
-  blueprint.blueprint.entities[ind].connections['1'].red.push({
-    entity_id: inputIndexes[i+1],
+for (let ind of inputIndexes) {
+  if (i === inputIndexes.length - 1) continue;
+  blueprint.blueprint.entities[ind].connections["1"].red.push({
+    entity_id: inputIndexes[i + 1],
     circuit_id: 1,
-  })
-  blueprint.blueprint.entities[inputIndexes[i+1]].connections['1'].red.push({
+  });
+  blueprint.blueprint.entities[inputIndexes[i + 1]].connections["1"].red.push({
     entity_id: ind,
     circuit_id: 1,
-  })
-  i++
+  });
+  i++;
 }
-x = 0
+
+x = 0;
+y = 0;
 for (let note of convertedNotes) {
+  if (x > maxLength) {
+    y += 10;
+    x = 0;
+  }
   if (x % 7 === 0) {
-    addToBlueprint(x, 8, "medium-electric-pole");
+    addToBlueprint(x, y+8, "medium-electric-pole");
   }
   x++;
 }
 
-//output Blueprint
 fs.writeFileSync("out/out.bp", factorio.encode(JSON.stringify(blueprint)));
-
